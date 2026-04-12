@@ -40,6 +40,14 @@ st.markdown("""
 # SETUP PAGE — shown when no Strava API credentials are configured
 # ═══════════════════════════════════════════════════════════════════════════════
 if not is_configured():
+    # Auto-detect current app URL from request headers
+    try:
+        host = st.context.headers.get("host", "localhost:8501")
+        scheme = "https" if ("streamlit.app" in host or "443" in host) else "http"
+        auto_uri = f"{scheme}://{host}"
+    except Exception:
+        auto_uri = "http://localhost:8501"
+
     st.markdown("""
     <div style="max-width:540px; margin:60px auto;">
       <h1 style="font-size:2rem;">🚴 Strava Training — Configuration</h1>
@@ -52,34 +60,40 @@ if not is_configured():
 
     _, col, _ = st.columns([1, 2, 1])
     with col:
+        st.info(f"🔗 URL de cette app détectée : **`{auto_uri}`**")
+
         with st.expander("📋 Comment créer une app Strava API ?", expanded=True):
-            st.markdown("""
+            st.markdown(f"""
 1. Va sur **[strava.com/settings/api](https://www.strava.com/settings/api)**
 2. Remplis le formulaire :
    - **Application Name** : ce que tu veux (ex: *My Training App*)
    - **Category** : Training
-   - **Website** : `http://localhost` (ou l'URL de déploiement)
-   - **Authorization Callback Domain** : l'URL ci-dessous (sans `https://`)
+   - **Website** : `{auto_uri}`
+   - **Authorization Callback Domain** : `{auto_uri.split("://")[1]}`
+     *(juste le domaine, sans `https://`)*
 3. Clique **Create** → copie le **Client ID** et le **Client Secret**
 """)
 
         with st.form("setup_form"):
             st.markdown("#### Tes credentials Strava API")
-            cid     = st.text_input("Client ID",     placeholder="ex: 112938")
-            csecret = st.text_input("Client Secret",  placeholder="ex: 3d448a40...", type="password")
-            ruri    = st.text_input("URL de cette app (Redirect URI)",
-                                    value="http://localhost:8501",
-                                    help="Doit correspondre exactement au 'Authorization Callback Domain' de ton app Strava.")
+            cid     = st.text_input("Client ID", placeholder="ex: 112938")
+            csecret = st.text_input("Client Secret", placeholder="ex: 3d448a40...", type="password")
+            ruri    = st.text_input(
+                "Redirect URI",
+                value=auto_uri,
+                help="Doit être EXACTEMENT l'URL de cette app. Copie-colle la valeur détectée ci-dessus.",
+            )
+            st.caption(f"⚠️ Le champ **Authorization Callback Domain** dans Strava doit contenir : `{auto_uri.split('://')[1]}`")
             ok = st.form_submit_button("✅ Enregistrer et continuer", use_container_width=True)
             if ok:
                 if not cid or not csecret or not ruri:
                     st.error("Tous les champs sont requis.")
                 else:
-                    save_config(cid, csecret, ruri)
+                    save_config(cid, csecret, ruri.rstrip("/"))
                     st.success("Configuration enregistrée !")
                     st.rerun()
 
-        st.caption("🔒 Ces informations restent dans ta session navigateur et ne sont jamais stockées sur le serveur.")
+        st.caption("🔒 Ces informations restent dans ta session navigateur, jamais stockées sur le serveur.")
     st.stop()
 
 

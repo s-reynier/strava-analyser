@@ -58,8 +58,29 @@ def exchange_code(code: str) -> dict:
         "client_secret": client_secret(),
         "code":          code,
         "grant_type":    "authorization_code",
+        "redirect_uri":  redirect_uri(),  # doit correspondre exactement à l'app Strava
     })
-    resp.raise_for_status()
+    if not resp.ok:
+        try:
+            err = resp.json()
+            field  = err.get("errors", [{}])[0].get("field", "?")
+            code_e = err.get("errors", [{}])[0].get("code", "?")
+            if field == "redirect_uri":
+                raise RuntimeError(
+                    f"redirect_uri invalide. "
+                    f"Vérifie que **{redirect_uri()}** correspond exactement au "
+                    f"'Authorization Callback Domain' dans ton app Strava "
+                    f"(sans `https://`, sans `/` final)."
+                )
+            if field == "client":
+                raise RuntimeError("Client ID ou Client Secret invalide.")
+            if field == "code":
+                raise RuntimeError("Code d'autorisation expiré. Réessaie la connexion.")
+            raise RuntimeError(f"Strava API error — {field}: {code_e}")
+        except RuntimeError:
+            raise
+        except Exception:
+            raise RuntimeError(f"Erreur Strava {resp.status_code}: {resp.text[:200]}")
     return resp.json()
 
 
