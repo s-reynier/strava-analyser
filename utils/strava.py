@@ -1,4 +1,4 @@
-"""Strava OAuth client — multi-user, session-based."""
+"""Strava OAuth client — fully generic, multi-user, session-based."""
 import time
 
 import requests
@@ -9,19 +9,34 @@ API_BASE    = f"{STRAVA_BASE}/api/v3"
 SCOPE       = "read,activity:read_all"
 
 
-# ── Config (from st.secrets or env) ──────────────────────────────────────────
+# ── Credential resolution: secrets.toml → session_state → empty ──────────────
 
-def _cfg(key: str) -> str:
+def _get(key: str) -> str:
+    """Read config from st.secrets first, then session_state (manual setup)."""
     try:
-        return st.secrets[key]
+        v = st.secrets.get(key, "")
+        if v:
+            return v
     except Exception:
-        import os
-        return os.environ.get(key, "")
+        pass
+    return st.session_state.get(f"cfg_{key}", "")
 
 
-def client_id()     -> str: return _cfg("STRAVA_CLIENT_ID")
-def client_secret() -> str: return _cfg("STRAVA_CLIENT_SECRET")
-def redirect_uri()  -> str: return _cfg("STRAVA_REDIRECT_URI")
+def client_id()     -> str: return _get("STRAVA_CLIENT_ID")
+def client_secret() -> str: return _get("STRAVA_CLIENT_SECRET")
+def redirect_uri()  -> str: return _get("STRAVA_REDIRECT_URI")
+
+
+def is_configured() -> bool:
+    """True if client_id and client_secret are available."""
+    return bool(client_id() and client_secret() and redirect_uri())
+
+
+def save_config(cid: str, csecret: str, ruri: str) -> None:
+    """Persist credentials in session state (no secrets.toml needed)."""
+    st.session_state["cfg_STRAVA_CLIENT_ID"]     = cid.strip()
+    st.session_state["cfg_STRAVA_CLIENT_SECRET"]  = csecret.strip()
+    st.session_state["cfg_STRAVA_REDIRECT_URI"]   = ruri.strip()
 
 
 # ── OAuth helpers ─────────────────────────────────────────────────────────────
@@ -70,7 +85,7 @@ def _refresh_if_needed() -> str | None:
     return tokens["access_token"]
 
 
-# ── Session state helpers ─────────────────────────────────────────────────────
+# ── Session helpers ───────────────────────────────────────────────────────────
 
 def is_authenticated() -> bool:
     return "strava_tokens" in st.session_state
@@ -82,7 +97,6 @@ def save_tokens(token_data: dict) -> None:
         "refresh_token": token_data["refresh_token"],
         "expires_at":    token_data["expires_at"],
     }
-    # Athlete info comes bundled in the exchange response
     if "athlete" in token_data:
         st.session_state["strava_athlete"] = token_data["athlete"]
 
@@ -93,9 +107,13 @@ def logout() -> None:
     st.cache_data.clear()
 
 
+def current_token_key() -> str:
+    return st.session_state.get("strava_tokens", {}).get("access_token", "")[:16]
+
+
 # ── API calls ─────────────────────────────────────────────────────────────────
 
-def _get(path: str, params: dict | None = None) -> dict | list:
+def _api_get(path: str, params: dict | None = None) -> dict | list:
     token = _refresh_if_needed()
     if not token:
         raise RuntimeError("Non authentifié")
@@ -109,19 +127,17 @@ def _get(path: str, params: dict | None = None) -> dict | list:
 
 
 @st.cache_data(ttl=300, show_spinner=False)
-def fetch_athlete(_token_key: str) -> dict:
-    """_token_key makes the cache user-specific (pass access_token)."""
+def fetch_athlete(_tok: str) -> dict:
     if "strava_athlete" in st.session_state:
         return st.session_state["strava_athlete"]
-    return _get("/athlete")
+    return _api_get("/athlete")
 
 
 @st.cache_data(ttl=300, show_spinner=False)
-def fetch_activities(_token_key: str, n: int = 60) -> list[dict]:
-    """Fetch up to n recent Ride activities."""
+def fetch_activities(_tok: str, n: int = 60) -> list[dict]:
     activities, page = [], 1
     while len(activities) < n:
-        batch = _get("/athlete/activities", {
+        batch = _api_get("/athlete/activities", {
             "per_page": min(n - len(activities), 30),
             "page": page,
         })
@@ -130,9 +146,3 @@ def fetch_activities(_token_key: str, n: int = 60) -> list[dict]:
         activities.extend(batch)
         page += 1
     return activities[:n]
-
-
-def current_token_key() -> str:
-    """Returns a short key usable as a cache discriminator per user."""
-    tokens = st.session_state.get("strava_tokens", {})
-    return tokens.get("access_token", "")[:16]

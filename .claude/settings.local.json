@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//home/sebastien/.config/strava-mcp/**)",
+      "Bash(curl -s 'https://www.strava.com/api/v3/athlete/activities?per_page=8' -H 'Authorization: Bearer 38119e3c3f66fe7efd945a442619c5c6882847be')",
+      "Bash(python3 -m json.tool)",
+      "Bash(curl -s -X POST https://www.strava.com/oauth/token -d client_id=112938 -d client_secret=3d448a40dc36aaa48be408b5ad3ba0976943377f -d grant_type=refresh_token -d refresh_token=b0a7e8b984a6b1d76b680281ae4a5fa33a6b58fa)",
+      "Bash(python3 -c \"import reportlab; print\\('reportlab ok'\\)\")",
+      "Bash(python3 -c \"import fpdf; print\\('fpdf ok'\\)\")",
+      "Bash(python3 -c \"import weasyprint; print\\('weasyprint ok'\\)\")",
+      "Bash(python3 -c \"import matplotlib; print\\('matplotlib ok'\\)\")",
+      "Bash(python3:*)",
+      "Bash(pip install:*)",
+      "Bash(streamlit run:*)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8501/)",
+      "Bash(pkill -f \"streamlit run\")",
+      "Bash(git init:*)",
+      "Bash(git add:*)",
+      "Bash(git config:*)",
+      "Bash(git branch:*)",
+      "Bash(git commit:*)",
+      "Bash(git remote:*)",
+      "Bash(git push:*)"
+    ]
+  }
+}
