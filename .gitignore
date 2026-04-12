@@ -1,0 +1,17 @@
+# Secrets — NE JAMAIS committer
+.streamlit/secrets.toml
+
+# Fichiers perso / générés
+*.pdf
+analyse_ftp.txt
+plan_*.md
+generate_report.py
+rapport_entrainement.pdf
+
+# Python
+__pycache__/
+*.py[cod]
+.env
+
+# OS
+.DS_Store
