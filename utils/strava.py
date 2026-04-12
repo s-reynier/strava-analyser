@@ -1,4 +1,6 @@
 """Strava OAuth client — fully generic, multi-user, session-based."""
+import base64
+import json
 import time
 
 import requests
@@ -42,6 +44,14 @@ def save_config(cid: str, csecret: str, ruri: str) -> None:
 # ── OAuth helpers ─────────────────────────────────────────────────────────────
 
 def auth_url() -> str:
+    # Encode credentials in `state` so they survive the Strava redirect
+    # (session_state is lost when the browser navigates away and comes back)
+    state_payload = base64.urlsafe_b64encode(json.dumps({
+        "i": client_id(),
+        "s": client_secret(),
+        "r": redirect_uri(),
+    }).encode()).decode()
+
     return (
         f"{STRAVA_BASE}/oauth/authorize"
         f"?client_id={client_id()}"
@@ -49,7 +59,20 @@ def auth_url() -> str:
         f"&response_type=code"
         f"&scope={SCOPE}"
         f"&approval_prompt=auto"
+        f"&state={state_payload}"
     )
+
+
+def restore_config_from_state(state: str) -> bool:
+    """Decode credentials from OAuth state param and restore session config."""
+    try:
+        data = json.loads(base64.urlsafe_b64decode(state.encode()).decode())
+        st.session_state["cfg_STRAVA_CLIENT_ID"]     = data["i"]
+        st.session_state["cfg_STRAVA_CLIENT_SECRET"]  = data["s"]
+        st.session_state["cfg_STRAVA_REDIRECT_URI"]   = data["r"]
+        return True
+    except Exception:
+        return False
 
 
 def exchange_code(code: str) -> dict:

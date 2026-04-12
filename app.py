@@ -14,6 +14,7 @@ from utils.strava import (
     auth_url, exchange_code, save_tokens,
     fetch_athlete, fetch_activities,
     is_authenticated, is_configured, save_config,
+    restore_config_from_state,
     logout, current_token_key,
 )
 
@@ -102,14 +103,21 @@ if not is_configured():
 # ═══════════════════════════════════════════════════════════════════════════════
 params = st.query_params
 if "code" in params and not is_authenticated():
-    code = params["code"]
+    # Restore credentials from state BEFORE anything else —
+    # session_state is lost when the browser navigated to Strava and back
+    if "state" in params:
+        restore_config_from_state(params["state"])
+
     if params.get("error"):
         st.error("Connexion Strava refusée.")
+        st.query_params.clear()
+    elif not is_configured():
+        st.error("Impossible de restaurer la configuration. Recommence depuis le début.")
         st.query_params.clear()
     else:
         with st.spinner("Connexion à Strava…"):
             try:
-                token_data = exchange_code(code)
+                token_data = exchange_code(params["code"])
                 save_tokens(token_data)
                 st.query_params.clear()
                 st.rerun()
